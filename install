@@ -1623,6 +1623,56 @@ function install_multisite(){
 #    fi
 }
 
+# Graphite
+function install_graphite(){
+    cadre "Install graphite addon" green
+    manageparameters "quiet"
+
+    cecho " > Downloading graphite" green
+    cd /usr/local/src
+    git clone https://github.com/graphite-project/graphite-web.git -b 0.9.x
+    git clone https://github.com/graphite-project/carbon.git -b 0.9.x
+    git clone https://github.com/graphite-project/whisper.git -b 0.9.x
+
+    cecho " > Installing graphite whisper" green
+    cd whisper
+    sudo python setup.py install
+    cecho " > Installing graphite carbon" green
+    cd ../carbon
+    python setup.py install
+
+    cecho " > Configuring graphite carbon" green
+    cd /opt/graphite/conf
+    cp carbon.conf{.example,}
+
+    cat >> ./storage-schemas.conf << EOF
+    [5min_on_1y]
+    priority = 100
+    pattern = .*
+    retentions = 5m:395d
+    EOF
+
+    cecho " > Installing graphite-web" green
+    cd /usr/local/src/graphite-web
+    python check-dependencies.py
+    python setup.py install
+
+    cecho " > Configuring graphite-web" green
+    cd /opt/graphite/webapp/graphite
+    python manage.py syncdb --noinput
+    python manage.py createsuperuser --username=root --email=admin.admys@sydel.fr --noinput
+
+    # Set TZ to avoid issue with 4H graph into shinken
+    cp local_settings.py.example local_settings.py
+    sed "s/.TIME_ZONE.*/TIME_ZONE = \'Europe\/Paris\'/" local_settings.py   
+
+    cecho " > Fix permissions and activate vhost for graphite webapp." green
+    cp /opt/graphite/example/example-graphite-vhost.conf /etc/httpd/conf.d/graphite.conf
+    chown apache:apache /opt/graphite/storage/log/webapp
+    chown apache:apache /opt/graphite/storage/
+    chown apache:apache /opt/graphite/storage/graphite.db
+}
+
 # pnp4nagios
 function install_pnp4nagios(){
     cadre "Install pnp4nagios addon" green
@@ -3185,6 +3235,7 @@ echo "Usage: install -k | -i | -u [addonname] | -b | -r backupname | -l | -c | -
                                check_rsync
     -a | --addon            Install addons. Argument should be one of the following:
                                pnp4nagios
+                               graphite
                                multisite
                                nagvis
                                mongodb
@@ -3341,6 +3392,10 @@ do
             if [ "$OPTARG" == "pnp4nagios" ]
             then
                 install_pnp4nagios
+                exit 0
+            elif [ "$OPTARG" == "graphite" ]
+            then
+                install_graphite
                 exit 0
             elif [ "$OPTARG" == "multisite" ]
             then
