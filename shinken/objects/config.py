@@ -1400,18 +1400,30 @@ class Config(Item):
     # Link templates with elements
     def linkify_templates(self):
         """ Like for normal object, we link templates with each others """
+        print "0 **************************************************"
         self.hosts.linkify_templates()
+        print "1 **************************************************"
         self.contacts.linkify_templates()
+        print "2 **************************************************"
         self.services.linkify_templates()
+        print "4 **************************************************"
         self.servicedependencies.linkify_templates()
+        print "5 **************************************************"
         self.hostdependencies.linkify_templates()
+        print "6 **************************************************"
         self.timeperiods.linkify_templates()
+        print "7 **************************************************"
         self.hostsextinfo.linkify_templates()
+        print "8 **************************************************"
         self.servicesextinfo.linkify_templates()
+        print "10 **************************************************"
         self.escalations.linkify_templates()
+        print "11 **************************************************"
         # But also old srv and host escalations
         self.serviceescalations.linkify_templates()
+        print "12 **************************************************"
         self.hostescalations.linkify_templates()
+        print "13 **************************************************"
 
     # Some parameters are just not managed like O*HP commands
     # and regexp capabilities

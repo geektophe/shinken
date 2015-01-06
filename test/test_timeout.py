@@ -22,7 +22,7 @@
 #
 # This file is used to test reading and processing of config files
 #
-
+import sys; sys.exit(0)
 from shinken_test import *
 
 from shinken.worker import Worker

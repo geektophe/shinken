@@ -29,6 +29,8 @@
  so we do not have to add manually all properties to the __slots__
  list when we add a new entry"""
 
+from shinken.descriptor import PropertyDescriptor
+
 
 class AutoSlots(type):
 
@@ -48,9 +50,18 @@ class AutoSlots(type):
             props = dct['properties']
             slots.update((p for p in props
                           if not props[p].no_slots))
+
+            for name, prop in dct['properties'].items():
+                dct[name] = PropertyDescriptor(name, prop)
+
         if 'running_properties' in dct:
             props = dct['running_properties']
             slots.update((p for p in props
                           if not props[p].no_slots))
+
+            for name, prop in dct['running_properties'].items():
+                dct[name] = PropertyDescriptor(name, prop)
+
         dct['__slots__'] = tuple(slots)
+
         return type.__new__(cls, name, bases, dct)

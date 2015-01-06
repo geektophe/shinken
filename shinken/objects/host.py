@@ -30,15 +30,17 @@ scheduling/consume check smart things :)
 """
 
 import time
-import itertools
 
 from item import Items
 from schedulingitem import SchedulingItem
 
 from shinken.autoslots import AutoSlots
-from shinken.util import format_t_into_dhms_format, to_hostnames_list, get_obj_name, to_svc_hst_distinct_lists, to_list_string_of_names, to_list_of_names, to_name_if_possible, strip_and_uniq
-from shinken.property import BoolProp, IntegerProp, FloatProp, CharProp, StringProp, ListProp
-from shinken.graph import Graph
+from shinken.util import format_t_into_dhms_format, to_hostnames_list
+from shinken.util import get_obj_name, to_svc_hst_distinct_lists
+from shinken.util import to_list_string_of_names, to_list_of_names
+from shinken.util import to_name_if_possible
+from shinken.property import BoolProp, IntegerProp, FloatProp, CharProp
+from shinken.property import StringProp, ListProp, PipeProp
 from shinken.macroresolver import MacroResolver
 from shinken.eventhandler import EventHandler
 from shinken.log import logger, naglog_result
@@ -71,7 +73,7 @@ class Host(SchedulingItem):
         'display_name':         StringProp(default='', fill_brok=['full_status']),
         'address':              StringProp(fill_brok=['full_status']),
         'parents':              ListProp(brok_transformation=to_hostnames_list, default='', fill_brok=['full_status'], merging='join'),
-        'hostgroups':           StringProp(brok_transformation=to_list_string_of_names, default='', fill_brok=['full_status'], merging='join'),
+        'hostgroups':           ListProp(brok_transformation=to_list_string_of_names, default='', fill_brok=['full_status'], merging='join', plus_support=True),
         'check_command':        StringProp(default='_internal_host_up', fill_brok=['full_status']),
         'initial_state':        CharProp(default='u', fill_brok=['full_status']),
         'max_check_attempts':   IntegerProp(default='1',fill_brok=['full_status']),
@@ -92,8 +94,8 @@ class Host(SchedulingItem):
         'process_perf_data':    BoolProp(default='1', fill_brok=['full_status'], retention=True),
         'retain_status_information': BoolProp(default='1', fill_brok=['full_status']),
         'retain_nonstatus_information': BoolProp(default='1', fill_brok=['full_status']),
-        'contacts':             StringProp(default='', brok_transformation=to_list_of_names, fill_brok=['full_status'], merging='join'),
-        'contact_groups':       StringProp(default='', fill_brok=['full_status'], merging='join'),
+        'contacts':             ListProp(default='', brok_transformation=to_list_of_names, fill_brok=['full_status'], merging='join', plus_support=True),
+        'contact_groups':       ListProp(default='', fill_brok=['full_status'], merging='join', plus_support=True),
         'notification_interval': IntegerProp(default='60', fill_brok=['full_status']),
         'first_notification_delay': IntegerProp(default='0', fill_brok=['full_status']),
         'notification_period':  StringProp(brok_transformation=to_name_if_possible, fill_brok=['full_status']),
@@ -168,7 +170,7 @@ class Host(SchedulingItem):
         'last_chk':             IntegerProp(default=0, fill_brok=['full_status', 'check_result'], retention=True),
         'next_chk':             IntegerProp(default=0, fill_brok=['full_status', 'next_schedule'], retention=True),
         'in_checking':          BoolProp(default=False, fill_brok=['full_status', 'check_result', 'next_schedule']),
-        'in_maintenance':       IntegerProp(default=None, fill_brok=['full_status'], retention=True),
+        'in_maintenance':       PipeProp(default=None, fill_brok=['full_status'], retention=True, allow_none=True),
         'latency':              FloatProp(default=0, fill_brok=['full_status', 'check_result'], retention=True),
         'attempt':              IntegerProp(default=0, fill_brok=['full_status', 'check_result'], retention=True),
         'state':                StringProp(default='PENDING', fill_brok=['full_status', 'check_result'], retention=True),
@@ -179,11 +181,11 @@ class Host(SchedulingItem):
         'last_event_id':        IntegerProp(default=0, fill_brok=['full_status', 'check_result'], retention=True),
         'last_state':           StringProp(default='PENDING', fill_brok=['full_status', 'check_result'], retention=True),
         'last_state_id':        IntegerProp(default=0, fill_brok=['full_status', 'check_result'], retention=True),
-        'last_state_type':     StringProp(default='HARD', fill_brok=['full_status', 'check_result'],  retention=True),
+        'last_state_type':      StringProp(default='HARD', fill_brok=['full_status', 'check_result'],  retention=True),
         'last_state_change':    FloatProp(default=0.0, fill_brok=['full_status', 'check_result'], retention=True),
         'last_hard_state_change': FloatProp(default=0.0, fill_brok=['full_status', 'check_result'], retention=True),
         'last_hard_state':      StringProp(default='PENDING', fill_brok=['full_status'], retention=True),
-        'last_hard_state_id':  IntegerProp(default=0, fill_brok=['full_status'], retention=True),
+        'last_hard_state_id':   IntegerProp(default=0, fill_brok=['full_status'], retention=True),
         'last_time_up':         IntegerProp(default=0, fill_brok=['full_status', 'check_result'], retention=True),
         'last_time_down':       IntegerProp(default=0, fill_brok=['full_status', 'check_result'], retention=True),
         'last_time_unreachable': IntegerProp(default=0, fill_brok=['full_status', 'check_result'], retention=True),
@@ -213,7 +215,7 @@ class Host(SchedulingItem):
         'checks_in_progress':   StringProp(default=[]),
 
         # No broks, it's just internal, and checks have too links
-        'notifications_in_progress': StringProp(default={}, retention=True),
+        'notifications_in_progress': PipeProp(default={}, retention=True),
         'downtimes':            StringProp(default=[], fill_brok=['full_status'], retention=True),
         'comments':             StringProp(default=[], fill_brok=['full_status'], retention=True),
         'flapping_changes':     StringProp(default=[], fill_brok=['full_status'], retention=True),
@@ -242,13 +244,13 @@ class Host(SchedulingItem):
         'return_code':          IntegerProp(default=0, fill_brok=['full_status', 'check_result'], retention=True),
         'perf_data':            StringProp(default='', fill_brok=['full_status', 'check_result'], retention=True),
         'last_perf_data':       StringProp(default='', retention=True),
-        'customs':              StringProp(default={}, fill_brok=['full_status']),
-        'got_default_realm':   BoolProp(default=False),
+        'customs':              PipeProp(default={}, fill_brok=['full_status']),
+        'got_default_realm':    BoolProp(default=False),
 
         # use for having all contacts we have notified
         # Warning: for the notified_contacts retention save, we save only the names of the contacts, and we should RELINK
         # them when we load it.
-        'notified_contacts':    StringProp(default=set(), retention=True, retention_preparation=to_list_of_names),
+        'notified_contacts':    PipeProp(default=set(), retention=True, retention_preparation=to_list_of_names),
 
         'in_scheduled_downtime': BoolProp(default=False, fill_brok=['full_status'], retention=True),
         'in_scheduled_downtime_during_last_check': BoolProp(default=False, retention=True),
@@ -267,10 +269,10 @@ class Host(SchedulingItem):
         # so our parents as network relation, or a host
         # we are depending in a hostdependency
         # or even if we are business based.
-        'parent_dependencies': StringProp(brok_transformation=to_svc_hst_distinct_lists, default=set(), fill_brok=['full_status']),
+        'parent_dependencies': PipeProp(brok_transformation=to_svc_hst_distinct_lists, default=set(), fill_brok=['full_status']),
         # Here it's the guys that depend on us. So it's the total
         # opposite of the parent_dependencies
-        'child_dependencies':   StringProp(
+        'child_dependencies':   PipeProp(
             brok_transformation=to_svc_hst_distinct_lists,
             default=set(),
             fill_brok=['full_status']),
@@ -318,10 +320,10 @@ class Host(SchedulingItem):
 
         # Trigger list
         'triggers':  StringProp(default=[]),
-        
+
         # Keep the string of the last command launched for this element
         'last_check_command': StringProp(default=''),
-        
+
     })
 
     # Hosts macros and prop that give the information
@@ -1128,10 +1130,10 @@ class Hosts(Items):
 
             if hasattr(h, 'host_name') and hasattr(h, 'hostgroups'):
                 hname = h.host_name
-                if isinstance(h.hostgroups, list):
-                    h.hostgroups = ','.join(h.hostgroups)
-                hgs = h.hostgroups.split(',')
-                for hg in hgs:
+                #if isinstance(h.hostgroups, list):
+                #    h.hostgroups = ','.join(h.hostgroups)
+                #hgs = h.hostgroups.split(',')
+                for hg in h.hostgroups:
                     hostgroups.add_member(hname, hg.strip())
 
 

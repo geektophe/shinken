@@ -26,7 +26,7 @@
 from item import Item, Items
 
 from shinken.util import strip_and_uniq
-from shinken.property import BoolProp, IntegerProp, StringProp
+from shinken.property import BoolProp, IntegerProp, StringProp, ListProp
 from shinken.log import logger, naglog_result
 
 _special_properties = ('service_notification_commands', 'host_notification_commands',
@@ -48,7 +48,7 @@ class Contact(Item):
     properties.update({
         'contact_name':     StringProp(fill_brok=['full_status']),
         'alias':            StringProp(default='none', fill_brok=['full_status']),
-        'contactgroups':    StringProp(default='', fill_brok=['full_status']),
+        'contactgroups':    ListProp(default='', fill_brok=['full_status'], plus_support=True),
         'host_notifications_enabled': BoolProp(default='1', fill_brok=['full_status']),
         'service_notifications_enabled': BoolProp(default='1', fill_brok=['full_status']),
         'host_notification_period': StringProp(fill_brok=['full_status']),
@@ -251,13 +251,13 @@ class Contacts(Items):
     # We look for contacts property in contacts and
     def explode(self, contactgroups, notificationways):
         # Contactgroups property need to be fullfill for got the informations
-        self.apply_partial_inheritance('contactgroups')
+        #self.apply_partial_inheritance('contactgroups')
         # _special properties maybe came from a template, so
         # import them before grok ourselves
         for prop in _special_properties:
             if prop == 'contact_name':
                 continue
-            self.apply_partial_inheritance(prop)
+            #self.apply_partial_inheritance(prop)
 
         # Register ourself into the contactsgroups we are in
         for c in self:

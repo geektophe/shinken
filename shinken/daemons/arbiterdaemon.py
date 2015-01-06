@@ -371,7 +371,7 @@ class Arbiter(Daemon):
         self.conf.linkify_templates()
 
         # All inheritances
-        self.conf.apply_inheritance()
+        #self.conf.apply_inheritance()
 
         # Explode between types
         self.conf.explode()
@@ -380,19 +380,19 @@ class Arbiter(Daemon):
         self.conf.apply_implicit_inheritance()
 
         # Fill default values
-        self.conf.fill_default()
+        #self.conf.fill_default()
 
         # Remove templates from config
-        self.conf.remove_templates()
+        #self.conf.remove_templates()
 
         # We compute simple item hash
-        self.conf.compute_hash()
+        #self.conf.compute_hash()
 
         # Overrides sepecific service instaces properties
         self.conf.override_properties()
 
         # Pythonize values
-        self.conf.pythonize()
+        #self.conf.pythonize()
 
         # Linkify objects to each other
         self.conf.linkify()

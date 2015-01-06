@@ -58,7 +58,9 @@ class Property(object):
                  fill_brok=None, conf_send_preparation=None,
                  brok_transformation=None, retention=False,
                  retention_preparation=None, to_send=False,
-                 override=False, managed=True, split_on_coma=True, merging='uniq'):
+                 override=False, managed=True, split_on_coma=True,
+                 merging='uniq', allow_none=False,
+                 plus_support=False):
 
         """
         `default`: default value to be used if this property is not set.
@@ -102,6 +104,7 @@ class Property(object):
         merging: for merging properties, should we take only one or we can
                      link with ,
 
+        allow_none: Should None value be `pythonized`.
         """
 
         self.default = default
@@ -122,6 +125,8 @@ class Property(object):
         self.unused = False
         self.merging = merging
         self.split_on_coma = split_on_coma
+        self.allow_none = allow_none
+        self.plus_support = plus_support
 
 
 class UnusedProp(Property):
@@ -161,6 +166,10 @@ class BoolProp(Property):
 
     @staticmethod
     def pythonize(val):
+        if isinstance(val, bool):
+            return val
+        elif isinstance(val, int):
+            return bool(val)
         val = unique_value(val)
         return _boolean_states[val.lower()]
 
@@ -279,3 +288,13 @@ class AddrProp(Property):
             addr['port'] = int(m.group(2))
 
         return addr
+
+
+class PipeProp(Property):
+    """Void"""
+
+    def pythonize(self, val):
+        """
+        Pipe method that returnts the input value as is.
+        """
+        return val

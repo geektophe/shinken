@@ -30,7 +30,7 @@
 from item import Item, Items
 
 from shinken.brok import Brok
-from shinken.property import StringProp
+from shinken.property import StringProp, ListProp
 from shinken.log import logger
 
 
@@ -41,7 +41,7 @@ class Itemgroup(Item):
 
     properties = Item.properties.copy()
     properties.update({
-        'members': StringProp(fill_brok=['full_status']),
+        'members': ListProp(fill_brok=['full_status'], plus_support=True),
         # Shinken specific
         'unknown_members': StringProp(default=None),
     })

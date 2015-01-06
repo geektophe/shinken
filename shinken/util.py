@@ -246,10 +246,7 @@ def to_split(val, split_on_coma=True):
         return val
     if not split_on_coma:
         return [val]
-    val = val.split(',')
-    if val == ['']:
-        val = []
-    return val
+    return [v.strip() for v in val.split(',') if v.strip()]
 
 
 def to_best_int_float(val):
@@ -872,7 +869,14 @@ def filter_service_by_bp_rule_label(label):
 
 
 def is_complex_expr(expr):
-    for m in '()&|!*':
-        if m in expr:
-            return True
-    return False
+    try:
+        for m in '()&|!*':
+            if m in expr:
+                return True
+        return False
+    except:
+        import pprint
+        pp = pprint.PrettyPrinter(indent=4)
+        pp.pprint(expr)
+        raise
+

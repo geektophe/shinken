@@ -67,7 +67,7 @@ class Item(object):
         'configuration_errors':     ListProp(default=[]),
         'hash':   StringProp(default=''),
         # We save all template we asked us to load from
-        'tags': ListProp(default=set(), fill_brok=['full_status']),
+        'tags': ListProp(default=[], fill_brok=['full_status']),
     }
 
     macros = {
@@ -93,7 +93,7 @@ class Item(object):
             params[key] = self.compact_unique_attr_value(params[key])
             # checks for attribute value special syntax (+ or _)
             if not isinstance(params[key], list) and \
-               len(params[key]) >= 1 and params[key][0] == '+':
+               params[key].startswith('+'):
                 # Special case: a _MACRO can be a plus. so add to plus
                 # but upper the key for the macro name
                 if key[0] == "_":
@@ -166,8 +166,15 @@ Like temporary attributes such as "imported_from", etc.. """
         return str(self.__dict__) + '\n'
 
     def is_tpl(self):
-        """ Return if the elements is a template """
-        return getattr(self, "register", '') == '0'
+        """
+        Return if the elements is a template
+
+        Caution: because this method may be called from within the
+        PropertyDescriptor class, we reference directly the internal __dict__
+        dictionnary to check if attribute is defined rather than using hasattr
+        to avoid infinite recursive loop.
+        """
+        return self.__dict__.get("register", '') == '0'
 
     # If a prop is absent and is not required, put the default value
     def fill_default(self):
@@ -236,18 +243,24 @@ Like temporary attributes such as "imported_from", etc.. """
         self.id = i
 
     def get_templates(self):
-        use = getattr(self, 'use', '')
+        use = getattr(self, 'use', [])
         if isinstance(use, list):
-            return use
+            return list(set(use))
         else:
-            return [n.strip() for n in use.split(',') if n.strip()]
+            return list(set([n.strip() for n in use.split(',') if n.strip()]))
 
 
     # We fillfull properties with template ones if need
+    #
+    # Caution: because this method may be called from within the
+    # PropertyDescriptor class, we reference directly the internal __dict__
+    # dictionnary to check if attribute is defined rather than using hasattr
+    # to avoid infinite recursive loop.
     def get_property_by_inheritance(self, prop):
+        #import pdb; pdb.set_trace()
         # If I have the prop, I take mine but I check if I must
         # add a plus property
-        if hasattr(self, prop):
+        if prop in self.__dict__:
             value = getattr(self, prop)
             # Manage the additive inheritance for the property,
             # if property is in plus, add or replace it
@@ -274,7 +287,7 @@ Like temporary attributes such as "imported_from", etc.. """
                     still_loop = True
 
                 # Maybe in the previous loop, we set a value, use it too
-                if hasattr(self, prop):
+                if prop in self.__dict__:
                     # If the current value is strong, it will simplify the problem
                     if not isinstance(value, list) and value.startswith('+'):
                         # In this case we can remove the + from our current
@@ -301,7 +314,7 @@ Like temporary attributes such as "imported_from", etc.. """
 
         # Maybe templates only give us + values, so we didn't quit, but we already got a
         # self.prop value after all
-        template_with_only_plus = hasattr(self, prop)
+        template_with_only_plus = prop in self.__dict__
 
         # I do not have endingprop, my templates too... Maybe a plus?
         # warning: if all my templates gave me '+' values, do not forgot to
@@ -321,7 +334,7 @@ Like temporary attributes such as "imported_from", etc.. """
 
         # Ok so in the end, we give the value we got if we have one, or None
         # Not even a plus... so None :)
-        return getattr(self, prop, None)
+        return self.__dict__.get(prop, None)
 
 
     # We fillfull properties with template ones if need
@@ -406,6 +419,7 @@ Like temporary attributes such as "imported_from", etc.. """
             # Ok, if we got old_name and NO new name,
             # we switch the name
             if hasattr(self, old_name) and not hasattr(self, new_name):
+                #import pdb; pdb.set_trace()
                 value = getattr(self, old_name)
                 setattr(self, new_name, value)
                 delattr(self, old_name)
@@ -816,6 +830,7 @@ class Items(object):
         objcls = self.inner_class.my_type
         if name is None and name_property:
             name = getattr(item, name_property, '')
+        print "indexing %s as %s" % (item.get_name(), name)
         if not name:
             mesg = "a %s item has been defined without %s%s" % \
                    (objcls, name_property, self.get_source(item))
@@ -928,12 +943,20 @@ class Items(object):
     def find_tpl_by_name(self, name):
         return self.name_to_template.get(name, None)
 
-    def get_all_tags(self, item):
+    def get_all_tags(self, item, spaces=0):
+        #print
+        #print "%s> before all tags %s" % (spaces*" | ", item.get_name())
+        #print "%s  use: %s" %(" | "*spaces, getattr(item, "use", []))
+        #print "%s  templates: %s" %(" | "*spaces, [t.name for t in item.templates])
+        #if item.get_name() == "XUPLOAD::Service status":
+        #    import pudb; pudb.set_trace()
         all_tags = item.get_templates()
 
         for t in item.templates:
-            all_tags.append(t.name)
-            all_tags.extend(self.get_all_tags(t))
+            child_tags = self.get_all_tags(t, spaces+1)
+            all_tags.extend(child_tags)
+            #print "%- stags from %s: %s" % (" | "*2*spaces, t.name, child_tags)
+        #print "%s< after all tags %s: %s" % (" | "*spaces, item.get_name(), all_tags)
         return list(set(all_tags))
 
     def linkify_item_templates(self, item):
@@ -952,9 +975,14 @@ class Items(object):
         # First we create a list of all templates
         for i in itertools.chain(self.items.itervalues(),
                                  self.templates.itervalues()):
+            #print "* start"
+            #print i.get_name()
             self.linkify_item_templates(i)
+            #print "* end"
+        #print "set tags"
         for i in self:
             i.tags = self.get_all_tags(i)
+        #print "end set tags"
 
     def is_correct(self):
         # we are ok at the beginning. Hope we still ok at the end...
@@ -1017,24 +1045,9 @@ class Items(object):
             s = s + str(cls) + ':' + str(id) + str(self.items[id]) + '\n'
         return s
 
-    # Inheritance for just a property
-    def apply_partial_inheritance(self, prop):
-        for i in itertools.chain(self.items.itervalues(),
-                                 self.templates.itervalues()):
-            i.get_property_by_inheritance(prop)
-            # If a "null" attribute was inherited, delete it
-            try:
-                if getattr(i, prop) == 'null':
-                    delattr(i, prop)
-            except:
-                pass
-
     def apply_inheritance(self):
         # We check for all Class properties if the host has it
         # if not, it check all host templates for a value
-        cls = self.inner_class
-        for prop in cls.properties:
-            self.apply_partial_inheritance(prop)
         for i in self:
             i.get_customs_properties_by_inheritance()
 
@@ -1115,11 +1128,7 @@ class Items(object):
     # all into our contacts property
     def explode_contact_groups_into_contacts(self, item, contactgroups):
         if hasattr(item, 'contact_groups'):
-            if isinstance(item.contact_groups, list):
-                cgnames = item.contact_groups
-            else:
-                cgnames = item.contact_groups.split(',')
-            cgnames = strip_and_uniq(cgnames)
+            cgnames = strip_and_uniq(item.contact_groups)
             for cgname in cgnames:
                 cg = contactgroups.find_by_name(cgname)
                 if cg is None:
@@ -1132,7 +1141,7 @@ class Items(object):
                 # We add contacts into our contacts
                 if cnames != []:
                     if hasattr(item, 'contacts'):
-                        item.contacts += ',' + cnames
+                        item.contacts.extend(cnames)
                     else:
                         item.contacts = cnames
 
@@ -1316,8 +1325,6 @@ class Items(object):
                 item.configuration_errors.append(str(e))
 
         # Expands host names
-        hname = getattr(item, "host_name", '')
-        hnames_list.extend([n.strip() for n in hname.split(',') if n.strip()])
         hnames = set()
 
         for h in hnames_list:
@@ -1336,7 +1343,7 @@ class Items(object):
             else:
                 hnames.add(h)
 
-        item.host_name = ','.join(hnames)
+        item.host_name = ','.join(list(hnames))
 
     # Take our trigger strings and create true objects with it
     def explode_trigger_string_into_triggers(self, triggers):

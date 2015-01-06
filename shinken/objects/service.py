@@ -42,7 +42,7 @@ from shinken.util import strip_and_uniq, format_t_into_dhms_format, to_svc_hst_d
     get_key_value_sequence, GET_KEY_VALUE_SEQUENCE_ERROR_SYNTAX, GET_KEY_VALUE_SEQUENCE_ERROR_NODEFAULT, \
     GET_KEY_VALUE_SEQUENCE_ERROR_NODE, to_list_string_of_names, to_list_of_names, to_name_if_possible, \
     is_complex_expr
-from shinken.property import BoolProp, IntegerProp, FloatProp, CharProp, StringProp, ListProp
+from shinken.property import BoolProp, IntegerProp, FloatProp, CharProp, StringProp, ListProp, PipeProp
 from shinken.macroresolver import MacroResolver
 from shinken.eventhandler import EventHandler
 from shinken.log import logger, naglog_result
@@ -70,11 +70,11 @@ class Service(SchedulingItem):
     # no_slots: do not take this property for __slots__
     properties = SchedulingItem.properties.copy()
     properties.update({
-        'host_name':              StringProp(fill_brok=['full_status', 'check_result', 'next_schedule']),
+        'host_name':              StringProp(default='', fill_brok=['full_status', 'check_result', 'next_schedule']),
         'hostgroup_name':         StringProp(default='', fill_brok=['full_status'], merging='join'),
         'service_description':    StringProp(fill_brok=['full_status', 'check_result', 'next_schedule']),
         'display_name':           StringProp(default='', fill_brok=['full_status']),
-        'servicegroups':          StringProp(default='', fill_brok=['full_status'], brok_transformation=to_list_string_of_names, merging='join'),
+        'servicegroups':          ListProp(default='', fill_brok=['full_status'], brok_transformation=to_list_string_of_names, merging='join', plus_support=True),
         'is_volatile':            BoolProp(default='0', fill_brok=['full_status']),
         'check_command':          StringProp(fill_brok=['full_status']),
         'initial_state':          CharProp(default='o', fill_brok=['full_status']),
@@ -101,9 +101,9 @@ class Service(SchedulingItem):
         'notification_period':    StringProp(brok_transformation=to_name_if_possible, fill_brok=['full_status']),
         'notification_options':   ListProp(default='w,u,c,r,f,s', fill_brok=['full_status']),
         'notifications_enabled':  BoolProp(default='1', fill_brok=['full_status'], retention=True),
-        'contacts':               StringProp(default='', brok_transformation=to_list_of_names, fill_brok=['full_status'], merging='join'),
-        'contact_groups':         StringProp(default='', fill_brok=['full_status'], merging='join'),
-        'stalking_options':       ListProp(default='', fill_brok=['full_status'], merging='join'),
+        'contacts':               ListProp(default='', brok_transformation=to_list_of_names, fill_brok=['full_status'], merging='join'),
+        'contact_groups':         ListProp(default='', fill_brok=['full_status'], merging='join', plus_support=True),
+        'stalking_options':       ListProp(default='', fill_brok=['full_status'], merging='join', plus_support=True),
         'notes':                  StringProp(default='', fill_brok=['full_status']),
         'notes_url':              StringProp(default='', fill_brok=['full_status']),
         'action_url':             StringProp(default='', fill_brok=['full_status']),
@@ -122,7 +122,7 @@ class Service(SchedulingItem):
         'maintenance_period':      StringProp(default='', brok_transformation=to_name_if_possible, fill_brok=['full_status']),
         'time_to_orphanage':       IntegerProp(default="300", fill_brok=['full_status']),
         'merge_host_contacts': 	   BoolProp(default='0', fill_brok=['full_status']),
-        'labels':                  ListProp(default='', fill_brok=['full_status'], merging='join'),
+        'labels':                  ListProp(default='', fill_brok=['full_status'], merging='join', plus_support=True),
         'host_dependency_enabled':  BoolProp(default='1', fill_brok=['full_status']),
 
         # BUSINESS CORRELATOR PART
@@ -172,7 +172,7 @@ class Service(SchedulingItem):
         'last_chk':           IntegerProp(default=0, fill_brok=['full_status', 'check_result'], retention=True),
         'next_chk':           IntegerProp(default=0, fill_brok=['full_status', 'next_schedule'], retention=True),
         'in_checking':        BoolProp(default=False, fill_brok=['full_status', 'check_result', 'next_schedule'], retention=True),
-        'in_maintenance':     IntegerProp(default=None, fill_brok=['full_status'], retention=True),
+        'in_maintenance':     PipeProp(default=None, fill_brok=['full_status'], retention=True, allow_none=True),
         'latency':            FloatProp(default=0, fill_brok=['full_status', 'check_result'], retention=True,),
         'attempt':            IntegerProp(default=0, fill_brok=['full_status', 'check_result'], retention=True),
         'state':              StringProp(default='PENDING', fill_brok=['full_status', 'check_result'], retention=True),
@@ -208,7 +208,7 @@ class Service(SchedulingItem):
 
         'last_state_update':  FloatProp(default=0.0, fill_brok=['full_status'], retention=True),
         'checks_in_progress': ListProp(default=[]), # no brok because checks are too linked
-        'notifications_in_progress': ListProp(default={}, retention=True), # no broks because notifications are too linked
+        'notifications_in_progress': PipeProp(default={}, retention=True), # no broks because notifications are too linked
         'downtimes':          ListProp(default=[], fill_brok=['full_status'], retention=True),
         'comments':           ListProp(default=[], fill_brok=['full_status'], retention=True),
         'flapping_changes':   ListProp(default=[], fill_brok=['full_status'], retention=True),
@@ -239,10 +239,10 @@ class Service(SchedulingItem):
         'perf_data':          StringProp(default='', fill_brok=['full_status', 'check_result'], retention=True),
         'last_perf_data':     StringProp(default='', retention=True),
         'host':               StringProp(default=None),
-        'customs':            ListProp(default={}, fill_brok=['full_status']),
+        'customs':            PipeProp(default={}, fill_brok=['full_status']),
         # Warning: for the notified_contacts retention save, we save only the names of the contacts, and we should RELINK
         # them when we load it.
-        'notified_contacts':  ListProp(default=set(), retention=True, retention_preparation=to_list_of_names), # use for having all contacts we have notified
+        'notified_contacts':  PipeProp(default=set(), retention=True, retention_preparation=to_list_of_names), # use for having all contacts we have notified
         'in_scheduled_downtime': BoolProp(default=False, fill_brok=['full_status'], retention=True),
         'in_scheduled_downtime_during_last_check': BoolProp(default=False, retention=True),
         'actions':            ListProp(default=[]), # put here checks and notif raised
@@ -278,10 +278,10 @@ class Service(SchedulingItem):
         # so our parents as network relation, or a host
         # we are depending in a hostdependency
         # or even if we are business based.
-        'parent_dependencies': StringProp(default=set(), brok_transformation=to_svc_hst_distinct_lists, fill_brok=['full_status']),
+        'parent_dependencies': PipeProp(default=set(), brok_transformation=to_svc_hst_distinct_lists, fill_brok=['full_status']),
         # Here it's the guys that depend on us. So it's the total
         # opposite of the parent_dependencies
-        'child_dependencies': StringProp(brok_transformation=to_svc_hst_distinct_lists, default=set(), fill_brok=['full_status']),
+        'child_dependencies': PipeProp(brok_transformation=to_svc_hst_distinct_lists, default=set(), fill_brok=['full_status']),
 
         # Manage the unknown/unreach during hard state
         'in_hard_unknown_reach_phase': BoolProp(default=False, retention=True),
@@ -980,6 +980,7 @@ class Service(SchedulingItem):
             return
 
         m = MacroResolver()
+        m.output_macros = ['HOSTOUTPUT', 'HOSTPERFDATA', 'HOSTACKAUTHOR', 'HOSTACKCOMMENT', 'SERVICEOUTPUT', 'SERVICEPERFDATA', 'SERVICEACKAUTHOR', 'SERVICEACKCOMMENT']
         data = self.get_data_for_event_handler()
         cmd = m.resolve_command(cls.ocsp_command, data)
         e = EventHandler(cmd, timeout=cls.ocsp_timeout)
@@ -1221,18 +1222,6 @@ class Services(Items):
                     if h is not None and hasattr(h, prop):
                         setattr(s, prop, getattr(h, prop))
 
-    # Apply inheritance for all properties
-    def apply_inheritance(self, hosts):
-        # We check for all Host properties if the host has it
-        # if not, it check all host templates for a value
-        for prop in Service.properties:
-            self.apply_partial_inheritance(prop)
-
-        # Then implicit inheritance
-        # self.apply_implicit_inheritance(hosts)
-        for s in self:
-            s.get_customs_properties_by_inheritance()
-
     # Create dependencies for services (daddy ones)
     def apply_dependencies(self):
         for s in self:
@@ -1251,8 +1240,6 @@ class Services(Items):
     def is_excluded_for_host(self, host, service):
         sdescr = getattr(service, "service_description", '')
         excludes = getattr(host, "service_excludes", '')
-        if not isinstance(excludes, list):
-            excludes = [e.strip() for e in excludes.split(',') if e.strip()]
         return sdescr in excludes
 
     def explode_services_from_hosts(self, hosts, s, hnames):
@@ -1328,7 +1315,7 @@ class Services(Items):
             for name in hnames:
                 local_create_service(name)
         else:
-            hnames = [n.strip() for n in hname.split(',') if n.strip()]
+            hnames = strip_and_uniq(hname)
             for hname in hnames:
                 for name in hosts.find_hosts_that_use_template(hname):
                     local_create_service(name)
@@ -1390,12 +1377,10 @@ class Services(Items):
         # We explode service_dependencies into Servicedependency
         # We just create serviceDep with goods values (as STRING!),
         # the link pass will be done after
-        sdeps = [d.strip() for d in
-                 getattr(s, "service_dependencies", '').split(',')]
         # %2=0 are for hosts, !=0 are for service_description
         i = 0
         hname = ''
-        for elt in sdeps:
+        for elt in getattr(s, "service_dependencies", []):
             if i % 2 == 0:  # host
                 hname = elt
             else:  # description
@@ -1455,6 +1440,7 @@ class Services(Items):
 
         for id in self.templates.keys():
             t = self.templates[id]
+            print str(t)
             self.explode_contact_groups_into_contacts(t, contactgroups)
             self.explode_services_from_templates(hosts, t)
 
